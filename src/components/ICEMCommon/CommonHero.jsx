@@ -11,7 +11,9 @@ function MechHero() {
     []
   );
 
-  const iframeSrc = useMemo(() => {
+  const [redirectUrl, setRedirectUrl] = useState(null);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const token = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       
@@ -25,34 +27,49 @@ function MechHero() {
       
       // 3. Set redirect URL: main website in production, local origin for development
       const origin = isLocal ? window.location.origin : "https://indiraicem.ac.in";
-      const redirectUrl = encodeURIComponent(`${origin}/thank-you?npf_token=${encodeURIComponent(token)}`);
-      
-      return `https://widgets.nopaperforms.com/register?&r=${redirectUrl}&w=9fa0f32fe4f405fa68dc3df39ef6a11b`;
+      setRedirectUrl(encodeURIComponent(`${origin}/thank-you?npf_token=${encodeURIComponent(token)}`));
     }
-    return "https://widgets.nopaperforms.com/register?&r=https://indiraicem.ac.in/thank-you/&w=9fa0f32fe4f405fa68dc3df39ef6a11b";
   }, []);
 
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [message, setMessage] = useState("Loading form...");
   const timerRef = useRef(null);
 
-  const handleIframeLoad = () => {
-    setShowSkeleton(false);
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-  };
-
   useEffect(() => {
+    if (!redirectUrl) return;
+
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.async = true;
+    script.src = "https://widgets.nopaperforms.com/emwgts.js";
+    document.body.appendChild(script);
+
+    // Observe changes in the form div
+    const formEl = document.querySelector(".npf_wgts");
+    const observer = new MutationObserver(() => {
+      if (formEl && formEl.innerHTML.trim().length > 100) {
+        setShowSkeleton(false);
+        observer.disconnect();
+      }
+    });
+
+    if (formEl) {
+      observer.observe(formEl, { childList: true, subtree: true });
+    }
+
     timerRef.current = setTimeout(() => {
       if (showSkeleton) {
         setMessage("NPF form not supported on this domain");
+        observer.disconnect();
       }
     }, 5000);
+
     return () => {
+      document.body.removeChild(script);
+      observer.disconnect();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [showSkeleton]);
+  }, [redirectUrl]);
 
   useEffect(() => {
     let frameId;
@@ -165,18 +182,14 @@ function MechHero() {
                 </div>
               </div>
             )}
-            <iframe
-              src={iframeSrc}
-              width="100%"
-              height="490"
-              frameBorder="0"
-              allowFullScreen
-              title="NPF Enquiry Form"
-              className="rounded-lg overflow-hidden"
-              scrolling="no"
-              style={{ overflow: "hidden" }}
-              onLoad={handleIframeLoad}
-            ></iframe>
+            {redirectUrl && (
+              <div
+                className="npf_wgts w-full rounded-lg overflow-hidden"
+                data-height="490px"
+                data-w="9fa0f32fe4f405fa68dc3df39ef6a11b"
+                data-r={redirectUrl}
+              ></div>
+            )}
           </div>
         </div>
       </div>
